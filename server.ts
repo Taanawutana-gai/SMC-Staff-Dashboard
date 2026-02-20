@@ -25,6 +25,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
+app.set('trust proxy', 1); // Trust the first proxy (nginx)
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
@@ -120,7 +122,15 @@ app.post('/api/auth/login', async (req, res) => {
         name: user[2],
         position: user[5]
       };
-      res.json({ success: true, user: req.session.user });
+      
+      // Explicitly save session before responding to avoid race conditions
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).json({ error: 'ไม่สามารถบันทึกเซสชันได้' });
+        }
+        res.json({ success: true, user: req.session.user });
+      });
     } else {
       res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง หรือไม่มีสิทธิ์เข้าใช้งาน' });
     }
