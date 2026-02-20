@@ -1,0 +1,5 @@
+{
+  "name": "SMC Staff Dashboard",
+  "description": "A comprehensive management portal for SMC staff, featuring directory, task tracking, and operational analytics.",
+  "requestFramePermissions": []
+}
