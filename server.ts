@@ -35,86 +35,24 @@ app.use(session({
   }
 }));
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.APP_URL}/auth/google/callback`
-);
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyE8l450y2K-fOMkrrpd3BxccIcZI-aCo-9Lrf0ozYsotlaRpRr5vLLMUzpnbGObEg7tQ/exec';
 
-// Auth Routes
-app.get('/api/auth/url', (req, res) => {
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    prompt: 'consent'
-  });
-  res.json({ url });
-});
-
-app.get('/auth/google/callback', async (req, res) => {
-  const { code } = req.query;
-  try {
-    const { tokens } = await oauth2Client.getToken(code as string);
-    req.session.tokens = tokens;
-    res.send(`
-      <html>
-        <body>
-          <script>
-            if (window.opener) {
-              window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
-              window.close();
-            } else {
-              window.location.href = '/';
-            }
-          </script>
-          <p>Authentication successful. This window should close automatically.</p>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error('Error getting tokens:', error);
-    res.status(500).send('Authentication failed');
-  }
-});
-
-app.get('/api/auth/status', (req, res) => {
-  res.json({ isAuthenticated: !!req.session.tokens });
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true });
-  });
-});
-
-// Sheets Data API
+// Proxy for GAS Data
 app.get('/api/sheets/data', async (req, res) => {
-  if (!req.session.tokens) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  const auth = new google.auth.OAuth2();
-  auth.setCredentials(req.session.tokens);
-  
-  const sheets = google.sheets({ version: 'v4', auth });
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-
   try {
-    const [logs, employees, shifts] = await Promise.all([
-      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Logs!A:L' }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Employ_DB!A:F' }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Shift_DB!A:F' })
-    ]);
-
-    res.json({
-      logs: logs.data.values,
-      employees: employees.data.values,
-      shifts: shifts.data.values
-    });
+    const response = await fetch(`${GAS_URL}?action=getData`);
+    if (!response.ok) throw new Error('GAS Fetch Failed');
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error('Error fetching sheets data:', error);
-    res.status(500).json({ error: 'Failed to fetch data from Google Sheets' });
+    console.error('Error fetching from GAS:', error);
+    res.status(500).json({ error: 'Failed to fetch data from Google Apps Script' });
   }
+});
+
+// Remove OAuth routes as we are using GAS Proxy
+app.get('/api/auth/status', (req, res) => {
+  res.json({ isAuthenticated: true }); // Always true for GAS proxy mode
 });
 
 // Vite Middleware

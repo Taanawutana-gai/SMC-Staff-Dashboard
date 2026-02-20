@@ -138,7 +138,7 @@ export default function App() {
   }, [data, filters]);
 
   if (isAuthenticated === null) return null;
-  if (!isAuthenticated) return <AuthOverlay onConnect={handleConnect} />;
+  // AuthOverlay removed for GAS proxy mode
 
   const allRecords = getProcessedRecords();
   const yesterdayRecords = getProcessedRecords(subDays(new Date(), 1));
