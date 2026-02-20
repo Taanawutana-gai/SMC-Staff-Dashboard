@@ -41,7 +41,9 @@ export interface AttendanceRecord {
   siteId: string;
   name: string;
   shiftCode: string;
+  dateStart: string;
   startTime: string;
+  dateEnd: string;
   endTime: string;
-  status: 'สาย' | 'ไม่สาย' | 'ไม่ได้ทำงาน';
+  status: 'สาย' | 'ไม่สาย' | 'ผิดปกติ';
 }

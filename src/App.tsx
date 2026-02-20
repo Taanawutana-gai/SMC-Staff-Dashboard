@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AuthOverlay } from './components/AuthOverlay';
+import { Login } from './components/Login';
 import { FilterBoard } from './components/FilterBoard';
 import { SummaryBoard } from './components/SummaryBoard';
 import { AttendanceTable } from './components/AttendanceTable';
@@ -9,6 +9,7 @@ import { LogOut, RefreshCw, BarChart2 } from 'lucide-react';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [user, setUser] = useState<{ name: string; position: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<{
     logs: LogEntry[];
@@ -27,40 +28,115 @@ export default function App() {
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/status');
-      const { isAuthenticated } = await res.json();
-      setIsAuthenticated(isAuthenticated);
-      if (isAuthenticated) fetchData();
+      const data = await res.json();
+      setIsAuthenticated(data.isAuthenticated);
+      setUser(data.user);
+      if (data.isAuthenticated) fetchData();
     } catch (e) {
       setIsAuthenticated(false);
     }
+  };
+
+  const formatTo24h = (val: any) => {
+    if (!val) return '';
+    const str = String(val);
+    // If it's already HH:mm or HH:mm:ss
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+      const [h, m] = str.split(':');
+      return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+    }
+    // Try parsing as date
+    const date = new Date(val);
+    if (!isNaN(date.getTime())) {
+      return format(date, 'HH:mm');
+    }
+    return str;
+  };
+
+  const safeParseDate = (dateStr: string) => {
+    if (!dateStr) return new Date(NaN);
+    // Handle DD/MM/YYYY
+    if (dateStr.includes('/')) {
+      const [d, m, y] = dateStr.split('/').map(Number);
+      if (y > 2500) return new Date(y - 543, m - 1, d); // Handle Buddhist Era if any
+      return new Date(y, m - 1, d);
+    }
+    return parseISO(dateStr);
   };
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/sheets/data');
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to fetch: ${res.status} ${errText}`);
+      }
       const raw = await res.json();
+      console.log('Processed data from GAS:', raw);
+
+      if (!raw.logs || !raw.employees || !raw.shifts) {
+        throw new Error('Data structure is invalid. Check Sheet names (Logs, Employ_DB, Shift_DB)');
+      }
       
-      // Process raw arrays to objects
-      const logs: LogEntry[] = raw.logs.slice(1).map((row: any[]) => ({
-        staffId: row[0], name: row[1], dateClockIn: row[2], clockInTime: row[3],
-        clockInLat: row[4], clockInLong: row[5], dateClockOut: row[6], clockOutTime: row[7],
-        clockOutLat: row[8], clockOutLong: row[9], siteId: row[10], workingHours: row[11]
-      }));
+      // Process raw arrays to objects with safety checks
+      const logs: LogEntry[] = (raw.logs || []).slice(1)
+        .filter((row: any[]) => row.length >= 2 && row[0]) // Must have staffId
+        .map((row: any[]) => ({
+          staffId: String(row[0] || '').trim(), 
+          name: String(row[1] || '').trim(), 
+          dateClockIn: String(row[2] || '').trim(), 
+          clockInTime: formatTo24h(row[3]),
+          clockInLat: String(row[4] || ''), 
+          clockInLong: String(row[5] || ''), 
+          dateClockOut: String(row[6] || '').trim(), 
+          clockOutTime: formatTo24h(row[7]),
+          clockOutLat: String(row[8] || ''), 
+          clockOutLong: String(row[9] || ''), 
+          siteId: String(row[10] || '').trim(), 
+          workingHours: String(row[11] || '')
+        }));
 
-      const employees: Employee[] = raw.employees.slice(1).map((row: any[]) => ({
-        lineId: row[0], staffId: row[1], name: row[2], siteId: row[3], roleType: row[4], position: row[5]
-      }));
+      const employees: Employee[] = (raw.employees || []).slice(1)
+        .filter((row: any[]) => row.length >= 2 && row[1])
+        .map((row: any[]) => ({
+          lineId: String(row[0] || ''), 
+          staffId: String(row[1] || '').trim(), 
+          name: String(row[2] || '').trim(), 
+          siteId: String(row[3] || '').trim(), 
+          roleType: String(row[4] || ''), 
+          position: String(row[5] || '')
+        }));
 
-      const shifts: Shift[] = raw.shifts.slice(1).map((row: any[]) => ({
-        shiftCode: row[0], shiftName: row[1], startTime: row[2], endTime: row[3],
-        gracePeriod: parseInt(row[4] || '0'), lateThreshold: row[5]
-      }));
+      const shifts: Shift[] = (raw.shifts || []).slice(1)
+        .filter((row: any[]) => row.length >= 2)
+        .map((row: any[]) => ({
+          shiftCode: String(row[0] || '').trim(), 
+          shiftName: String(row[1] || ''), 
+          startTime: formatTo24h(row[2]), 
+          endTime: formatTo24h(row[3]),
+          gracePeriod: parseInt(String(row[4] || '0')), 
+          lateThreshold: String(row[5] || '')
+        }));
 
       setData({ logs, employees, shifts });
-    } catch (e) {
-      console.error(e);
+      
+      // Auto-adjust filters to match data range
+      if (logs.length > 0) {
+        const dates = logs.map(l => safeParseDate(l.dateClockIn).getTime()).filter(t => !isNaN(t));
+        if (dates.length > 0) {
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          setFilters(prev => ({
+            ...prev,
+            startDate: format(minDate, 'yyyy-MM-dd'),
+            endDate: format(maxDate, 'yyyy-MM-dd')
+          }));
+        }
+      }
+    } catch (e: any) {
+      console.error('Fetch Error:', e);
+      alert(`เกิดข้อผิดพลาดในการดึงข้อมูล: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -84,6 +160,7 @@ export default function App() {
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     setIsAuthenticated(false);
+    setUser(null);
     setData(null);
   };
 
@@ -96,7 +173,7 @@ export default function App() {
 
     return data.logs
       .filter(log => {
-        const logDate = parseISO(log.dateClockIn);
+        const logDate = safeParseDate(log.dateClockIn);
         const dateMatch = targetDate 
           ? isSameDay(logDate, targetDate)
           : isWithinInterval(logDate, { 
@@ -116,21 +193,25 @@ export default function App() {
         const shift = data.shifts[0]; 
         
         // Late calculation
-        let status: 'สาย' | 'ไม่สาย' | 'ไม่ได้ทำงาน' = 'ไม่สาย';
+        let status: 'สาย' | 'ไม่สาย' | 'ผิดปกติ' = 'ไม่สาย';
         if (log.clockInTime && shift) {
           const [inH, inM] = log.clockInTime.split(':').map(Number);
           const [sH, sM] = shift.startTime.split(':').map(Number);
           const inTotal = inH * 60 + inM;
           const sTotal = sH * 60 + sM + shift.gracePeriod;
           if (inTotal > sTotal) status = 'สาย';
+        } else if (!log.clockInTime) {
+          status = 'ผิดปกติ';
         }
 
         return {
           siteId: log.siteId,
           name: log.name,
           shiftCode: shift?.shiftCode || 'N/A',
-          startTime: log.clockInTime,
-          endTime: log.clockOutTime,
+          dateStart: log.dateClockIn ? format(safeParseDate(log.dateClockIn), 'dd/MM/yyyy') : '-',
+          startTime: log.clockInTime || '-',
+          dateEnd: log.dateClockOut ? format(safeParseDate(log.dateClockOut), 'dd/MM/yyyy') : '-',
+          endTime: log.clockOutTime || '-',
           status
         } as AttendanceRecord;
       })
@@ -138,7 +219,13 @@ export default function App() {
   }, [data, filters]);
 
   if (isAuthenticated === null) return null;
-  // AuthOverlay removed for GAS proxy mode
+  if (!isAuthenticated) {
+    return <Login onLogin={(user) => {
+      setIsAuthenticated(true);
+      setUser(user);
+      fetchData();
+    }} />;
+  }
 
   const allRecords = getProcessedRecords();
   const yesterdayRecords = getProcessedRecords(subDays(new Date(), 1));
@@ -158,13 +245,21 @@ export default function App() {
       {/* Navbar */}
       <nav className="sticky top-0 bg-white border-b border-[#DBDBDB] z-40 px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 rounded-lg flex items-center justify-center text-white">
-              <BarChart2 className="w-5 h-5" />
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 rounded-lg flex items-center justify-center text-white">
+                <BarChart2 className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-xl font-bold tracking-tight leading-none">SMC Analytics</h1>
+                {user && <span className="text-[10px] text-[#8E8E8E] font-medium">{user.name} ({user.position})</span>}
+              </div>
             </div>
-            <h1 className="text-xl font-bold tracking-tight">SMC Analytics</h1>
-          </div>
           <div className="flex items-center gap-4">
+            {data && (
+              <div className="hidden md:block text-[10px] text-[#8E8E8E] font-mono bg-slate-50 px-2 py-1 rounded border border-[#DBDBDB]">
+                Logs: {data.logs.length} | Staff: {data.employees.length} | Shifts: {data.shifts.length}
+              </div>
+            )}
             <button 
               onClick={fetchData}
               disabled={loading}
@@ -193,6 +288,36 @@ export default function App() {
           staff={staff}
           onFilterChange={handleFilterChange}
         />
+
+        {data && data.logs.length === 0 && !loading && (
+          <div className="ig-card p-12 text-center space-y-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto border border-[#DBDBDB]">
+              <BarChart2 className="w-8 h-8 text-slate-300" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-[#262626]">ไม่พบข้อมูลใน Google Sheets</h3>
+              <p className="text-sm text-[#8E8E8E]">กรุณาตรวจสอบว่าใน Sheet "Logs" มีข้อมูลการบันทึกเวลาแล้ว</p>
+            </div>
+          </div>
+        )}
+
+        {data && data.logs.length > 0 && allRecords.length === 0 && !loading && (
+          <div className="ig-card p-12 text-center space-y-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto border border-[#DBDBDB]">
+              <RefreshCw className="w-8 h-8 text-slate-300" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-[#262626]">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</h3>
+              <p className="text-sm text-[#8E8E8E]">ลองเปลี่ยนช่วงวันที่หรือตัวกรองอื่นๆ</p>
+              <button 
+                onClick={() => fetchData()}
+                className="text-indigo-600 text-sm font-semibold mt-4 hover:underline"
+              >
+                รีเซ็ตตัวกรองและดึงข้อมูลใหม่
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Board 2: Summary */}
         <SummaryBoard 
