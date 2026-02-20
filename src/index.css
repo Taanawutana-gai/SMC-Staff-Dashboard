@@ -1,25 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Kanit", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    @apply bg-[#FAFAFA] text-[#262626] font-sans antialiased;
   }
 }
 
-.glass-card {
-  @apply bg-white/80 backdrop-blur-md border border-slate-200 shadow-sm rounded-2xl;
+.ig-card {
+  @apply bg-white border border-[#DBDBDB] rounded-sm shadow-none;
+}
+
+.ig-button {
+  @apply bg-[#0095F6] hover:bg-[#1877F2] text-white font-semibold py-1.5 px-4 rounded-lg transition-colors text-sm;
+}
+
+.ig-input {
+  @apply bg-[#FAFAFA] border border-[#DBDBDB] rounded-sm py-2 px-3 text-sm focus:border-[#A8A8A8] focus:outline-none transition-all;
 }
 
 .data-grid-header {
-  @apply text-[11px] font-semibold uppercase tracking-wider text-slate-400 py-3 px-4;
+  @apply text-[12px] font-semibold uppercase tracking-wider text-[#8E8E8E] py-3 px-4 border-b border-[#DBDBDB];
 }
 
 .data-grid-row {
-  @apply border-b border-slate-100 hover:bg-slate-50 transition-colors;
+  @apply border-b border-[#EFEFEF] hover:bg-[#FAFAFA] transition-colors;
 }

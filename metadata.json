@@ -1,5 +1,5 @@
 {
-  "name": "SMC Staff Dashboard",
-  "description": "A comprehensive management portal for SMC staff, featuring directory, task tracking, and operational analytics.",
+  "name": "SMC Staff Analytics Dashboard",
+  "description": "A minimal, Instagram-inspired staff attendance analytics dashboard for SMC, integrated with Google Sheets.",
   "requestFramePermissions": []
 }

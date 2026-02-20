@@ -1,212 +1,217 @@
-import React, { useState } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { StatCard } from './components/StatCard';
-import { StaffTable } from './components/StaffTable';
-import { TaskBoard } from './components/TaskBoard';
-import { Announcements } from './components/Announcements';
-import { MOCK_STAFF, MOCK_TASKS, MOCK_ANNOUNCEMENTS } from './mockData';
-import { 
-  Users, 
-  CheckCircle2, 
-  Clock, 
-  TrendingUp,
-  Filter,
-  Download,
-  Plus,
-  Bell
-} from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
-import { motion, AnimatePresence } from 'motion/react';
-
-const CHART_DATA = [
-  { name: 'CS', count: 45, color: '#6366f1' },
-  { name: 'Ops', count: 32, color: '#0ea5e9' },
-  { name: 'Adm', count: 28, color: '#f59e0b' },
-  { name: 'Tech', count: 38, color: '#10b981' },
-  { name: 'Acad', count: 22, color: '#8b5cf6' },
-];
+import React, { useState, useEffect, useCallback } from 'react';
+import { AuthOverlay } from './components/AuthOverlay';
+import { FilterBoard } from './components/FilterBoard';
+import { SummaryBoard } from './components/SummaryBoard';
+import { AttendanceTable } from './components/AttendanceTable';
+import { LogEntry, Employee, Shift, AttendanceRecord } from './types';
+import { format, isWithinInterval, parseISO, subDays, isSameDay } from 'date-fns';
+import { LogOut, RefreshCw, BarChart2 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<{
+    logs: LogEntry[];
+    employees: Employee[];
+    shifts: Shift[];
+  } | null>(null);
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return (
-          <div className="space-y-8">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard 
-                title="Total Staff" 
-                value="142" 
-                change="12%" 
-                isPositive={true} 
-                icon={Users} 
-                color="indigo" 
-              />
-              <StatCard 
-                title="Active Now" 
-                value="86" 
-                change="4%" 
-                isPositive={true} 
-                icon={TrendingUp} 
-                color="emerald" 
-              />
-              <StatCard 
-                title="Pending Tasks" 
-                value="24" 
-                change="2" 
-                isPositive={false} 
-                icon={Clock} 
-                color="amber" 
-              />
-              <StatCard 
-                title="Completed" 
-                value="1,284" 
-                change="18%" 
-                isPositive={true} 
-                icon={CheckCircle2} 
-                color="sky" 
-              />
-            </div>
+  // Filters
+  const [filters, setFilters] = useState({
+    startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+    endDate: format(new Date(), 'yyyy-MM-dd'),
+    siteId: '',
+    staffId: ''
+  });
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Main Content Area */}
-              <div className="lg:col-span-2 space-y-8">
-                {/* Activity Chart */}
-                <div className="glass-card p-6">
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <h3 className="font-bold text-slate-900">Staff Distribution</h3>
-                      <p className="text-xs text-slate-500">Headcount by department</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
-                        <Filter className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
-                        <Download className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={CHART_DATA}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis 
-                          dataKey="name" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 12, fill: '#94a3b8' }}
-                          dy={10}
-                        />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 12, fill: '#94a3b8' }}
-                        />
-                        <Tooltip 
-                          cursor={{ fill: '#f8fafc' }}
-                          contentStyle={{ 
-                            borderRadius: '12px', 
-                            border: 'none', 
-                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                            fontSize: '12px'
-                          }}
-                        />
-                        <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
-                          {CHART_DATA.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Staff Table */}
-                <StaffTable staff={MOCK_STAFF} />
-              </div>
-
-              {/* Sidebar Content Area */}
-              <div className="space-y-8">
-                <Announcements announcements={MOCK_ANNOUNCEMENTS} />
-                <TaskBoard tasks={MOCK_TASKS} />
-              </div>
-            </div>
-          </div>
-        );
-      case 'directory':
-        return (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">Staff Directory</h2>
-              <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20">
-                <Plus className="w-4 h-4" />
-                Add Staff
-              </button>
-            </div>
-            <StaffTable staff={[...MOCK_STAFF, ...MOCK_STAFF]} />
-          </motion.div>
-        );
-      default:
-        return (
-          <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
-            <Clock className="w-12 h-12 mb-4 opacity-20" />
-            <p className="text-lg font-medium">Section Under Development</p>
-            <p className="text-sm">This module will be available in the next update.</p>
-          </div>
-        );
+  const checkAuth = async () => {
+    try {
+      const res = await fetch('/api/auth/status');
+      const { isAuthenticated } = await res.json();
+      setIsAuthenticated(isAuthenticated);
+      if (isAuthenticated) fetchData();
+    } catch (e) {
+      setIsAuthenticated(false);
     }
   };
 
-  return (
-    <div className="min-h-screen flex">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/sheets/data');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const raw = await res.json();
       
-      <main className="flex-1 ml-64 p-8">
-        <header className="flex items-center justify-between mb-10">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-              {activeTab === 'dashboard' ? 'Good morning, Admin' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-            </h1>
-            <p className="text-slate-500 mt-1">Here's what's happening at SMC today.</p>
+      // Process raw arrays to objects
+      const logs: LogEntry[] = raw.logs.slice(1).map((row: any[]) => ({
+        staffId: row[0], name: row[1], dateClockIn: row[2], clockInTime: row[3],
+        clockInLat: row[4], clockInLong: row[5], dateClockOut: row[6], clockOutTime: row[7],
+        clockOutLat: row[8], clockOutLong: row[9], siteId: row[10], workingHours: row[11]
+      }));
+
+      const employees: Employee[] = raw.employees.slice(1).map((row: any[]) => ({
+        lineId: row[0], staffId: row[1], name: row[2], siteId: row[3], roleType: row[4], position: row[5]
+      }));
+
+      const shifts: Shift[] = raw.shifts.slice(1).map((row: any[]) => ({
+        shiftCode: row[0], shiftName: row[1], startTime: row[2], endTime: row[3],
+        gracePeriod: parseInt(row[4] || '0'), lateThreshold: row[5]
+      }));
+
+      setData({ logs, employees, shifts });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkAuth();
+    const handleAuthSuccess = (event: MessageEvent) => {
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') checkAuth();
+    };
+    window.addEventListener('message', handleAuthSuccess);
+    return () => window.removeEventListener('message', handleAuthSuccess);
+  }, []);
+
+  const handleConnect = async () => {
+    const res = await fetch('/api/auth/url');
+    const { url } = await res.json();
+    window.open(url, 'oauth_popup', 'width=600,height=700');
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setIsAuthenticated(false);
+    setData(null);
+  };
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const getProcessedRecords = useCallback((targetDate?: Date) => {
+    if (!data) return [];
+
+    return data.logs
+      .filter(log => {
+        const logDate = parseISO(log.dateClockIn);
+        const dateMatch = targetDate 
+          ? isSameDay(logDate, targetDate)
+          : isWithinInterval(logDate, { 
+              start: parseISO(filters.startDate), 
+              end: parseISO(filters.endDate) 
+            });
+        
+        const siteMatch = !filters.siteId || log.siteId === filters.siteId;
+        const staffMatch = !filters.staffId || log.staffId === filters.staffId;
+        
+        return dateMatch && siteMatch && staffMatch;
+      })
+      .map(log => {
+        const employee = data.employees.find(e => e.staffId === log.staffId);
+        // Assuming shift is determined by some logic, here we'll just find the first shift for simplicity
+        // or a default one. In real app, you'd match by employee's assigned shift.
+        const shift = data.shifts[0]; 
+        
+        // Late calculation
+        let status: 'สาย' | 'ไม่สาย' | 'ไม่ได้ทำงาน' = 'ไม่สาย';
+        if (log.clockInTime && shift) {
+          const [inH, inM] = log.clockInTime.split(':').map(Number);
+          const [sH, sM] = shift.startTime.split(':').map(Number);
+          const inTotal = inH * 60 + inM;
+          const sTotal = sH * 60 + sM + shift.gracePeriod;
+          if (inTotal > sTotal) status = 'สาย';
+        }
+
+        return {
+          siteId: log.siteId,
+          name: log.name,
+          shiftCode: shift?.shiftCode || 'N/A',
+          startTime: log.clockInTime,
+          endTime: log.clockOutTime,
+          status
+        } as AttendanceRecord;
+      })
+      .sort((a, b) => a.siteId.localeCompare(b.siteId) || a.startTime.localeCompare(b.startTime));
+  }, [data, filters]);
+
+  if (isAuthenticated === null) return null;
+  if (!isAuthenticated) return <AuthOverlay onConnect={handleConnect} />;
+
+  const allRecords = getProcessedRecords();
+  const yesterdayRecords = getProcessedRecords(subDays(new Date(), 1));
+  const todayRecords = getProcessedRecords(new Date());
+
+  const stats = {
+    total: allRecords.length,
+    late: allRecords.filter(r => r.status === 'สาย').length,
+    onTime: allRecords.filter(r => r.status === 'ไม่สาย').length
+  };
+
+  const sites = Array.from(new Set(data?.employees.map(e => e.siteId) || []));
+  const staff = data?.employees.map(e => ({ id: e.staffId, name: e.name })) || [];
+
+  return (
+    <div className="min-h-screen pb-20">
+      {/* Navbar */}
+      <nav className="sticky top-0 bg-white border-b border-[#DBDBDB] z-40 px-4 py-3">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 rounded-lg flex items-center justify-center text-white">
+              <BarChart2 className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight">SMC Analytics</h1>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-slate-900">Friday, March 20</p>
-              <p className="text-xs text-slate-500">09:42 AM</p>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-all cursor-pointer">
-              <Bell className="w-5 h-5" />
-            </div>
+            <button 
+              onClick={fetchData}
+              disabled={loading}
+              className="p-2 hover:bg-slate-50 rounded-full transition-colors text-[#262626]"
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="p-2 hover:bg-slate-50 rounded-full transition-colors text-rose-500"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
-        </header>
+        </div>
+      </nav>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            {renderContent()}
-          </motion.div>
-        </AnimatePresence>
+      <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+        {/* Board 1: Filters */}
+        <FilterBoard 
+          startDate={filters.startDate}
+          endDate={filters.endDate}
+          siteId={filters.siteId}
+          staffId={filters.staffId}
+          sites={sites}
+          staff={staff}
+          onFilterChange={handleFilterChange}
+        />
+
+        {/* Board 2: Summary */}
+        <SummaryBoard 
+          total={stats.total}
+          late={stats.late}
+          onTime={stats.onTime}
+        />
+
+        {/* Board 3: Yesterday */}
+        <AttendanceTable 
+          title="ข้อมูลการลงเวลา - เมื่อวานนี้"
+          records={yesterdayRecords}
+        />
+
+        {/* Board 4: Today */}
+        <AttendanceTable 
+          title="ข้อมูลการลงเวลา - วันนี้"
+          records={todayRecords}
+        />
       </main>
     </div>
   );

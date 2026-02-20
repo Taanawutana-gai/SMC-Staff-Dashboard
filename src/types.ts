@@ -1,30 +1,47 @@
-export type StaffStatus = 'active' | 'on-leave' | 'remote' | 'offline';
-
-export interface StaffMember {
-  id: string;
+export interface LogEntry {
+  staffId: string;
   name: string;
-  role: string;
-  department: string;
-  email: string;
-  status: StaffStatus;
-  avatar: string;
-  lastActive: string;
+  dateClockIn: string;
+  clockInTime: string;
+  clockInLat: string;
+  clockInLong: string;
+  dateClockOut: string;
+  clockOutTime: string;
+  clockOutLat: string;
+  clockOutLong: string;
+  siteId: string;
+  workingHours: string;
 }
 
-export interface Task {
-  id: string;
-  title: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'todo' | 'in-progress' | 'completed';
-  assigneeId: string;
-  dueDate: string;
+export interface Employee {
+  lineId: string;
+  staffId: string;
+  name: string;
+  siteId: string;
+  roleType: string;
+  position: string;
 }
 
-export interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  date: string;
-  author: string;
-  category: 'urgent' | 'general' | 'event';
+export interface Shift {
+  shiftCode: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  gracePeriod: number;
+  lateThreshold: string;
+}
+
+export interface DashboardStats {
+  totalStaff: number;
+  lateStaff: number;
+  onTimeStaff: number;
+}
+
+export interface AttendanceRecord {
+  siteId: string;
+  name: string;
+  shiftCode: string;
+  startTime: string;
+  endTime: string;
+  status: 'สาย' | 'ไม่สาย' | 'ไม่ได้ทำงาน';
 }
