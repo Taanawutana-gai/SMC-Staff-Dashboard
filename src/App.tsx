@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Login } from './components/Login';
+import { AuthOverlay } from './components/AuthOverlay';
 import { FilterBoard } from './components/FilterBoard';
 import { SummaryBoard } from './components/SummaryBoard';
 import { AttendanceTable } from './components/AttendanceTable';
 import { LogEntry, Employee, Shift, AttendanceRecord } from './types';
 import { format, isWithinInterval, parseISO, subDays, isSameDay } from 'date-fns';
-import { LogOut, RefreshCw, BarChart2, AlertCircle } from 'lucide-react';
+import { LogOut, RefreshCw, BarChart2 } from 'lucide-react';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [user, setUser] = useState<{ name: string; position: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<{
     logs: LogEntry[];
@@ -28,10 +27,9 @@ export default function App() {
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/status');
-      const data = await res.json();
-      setIsAuthenticated(data.isAuthenticated);
-      setUser(data.user);
-      if (data.isAuthenticated) fetchData();
+      const { isAuthenticated } = await res.json();
+      setIsAuthenticated(isAuthenticated);
+      if (isAuthenticated) fetchData();
     } catch (e) {
       setIsAuthenticated(false);
     }
@@ -53,39 +51,6 @@ export default function App() {
     return str;
   };
 
-  const safeParseDate = (dateStr: string) => {
-    if (!dateStr) return new Date(NaN);
-    const str = String(dateStr).trim();
-    
-    // ถ้าเป็น ISO Format อยู่แล้ว (เช่น จาก JSON.stringify ของ GAS)
-    if (str.includes('T') && !isNaN(Date.parse(str))) {
-      return new Date(str);
-    }
-
-    const cleanStr = str.split(' ')[0]; // ตัดส่วนเวลาออก
-    
-    if (cleanStr.includes('/') || cleanStr.includes('-')) {
-      const separator = cleanStr.includes('/') ? '/' : '-';
-      const parts = cleanStr.split(separator);
-      if (parts.length === 3) {
-        let d, m, y;
-        // ตรวจสอบว่าเป็น YYYY-MM-DD หรือ DD/MM/YYYY
-        if (parts[0].length === 4) {
-          [y, m, d] = parts.map(Number);
-        } else {
-          [d, m, y] = parts.map(Number);
-        }
-        
-        if (y > 2500) y -= 543;
-        if (y < 100) y += 2000;
-        return new Date(y, m - 1, d);
-      }
-    }
-    
-    const parsed = new Date(str);
-    return isNaN(parsed.getTime()) ? new Date(NaN) : parsed;
-  };
-
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -95,80 +60,46 @@ export default function App() {
         throw new Error(`Failed to fetch: ${res.status} ${errText}`);
       }
       const raw = await res.json();
-      console.log('Processed data from GAS:', raw);
+      console.log('Raw data from GAS:', raw);
 
       if (!raw.logs || !raw.employees || !raw.shifts) {
         throw new Error('Data structure is invalid. Check Sheet names (Logs, Employ_DB, Shift_DB)');
       }
       
-      // 1. Process Employees FIRST so we can use them to discover columns in Logs
+      // Process raw arrays to objects with safety checks
+      const logs: LogEntry[] = (raw.logs || []).slice(1)
+        .filter((row: any[]) => row.length >= 2) // Must have at least staffId and name
+        .map((row: any[]) => ({
+          staffId: String(row[0] || ''), 
+          name: String(row[1] || ''), 
+          dateClockIn: String(row[2] || ''), 
+          clockInTime: formatTo24h(row[3]),
+          clockInLat: String(row[4] || ''), 
+          clockInLong: String(row[5] || ''), 
+          dateClockIn_out: String(row[6] || ''), // Fixed typo in mapping if needed, but keeping original structure
+          dateClockOut: String(row[6] || ''), 
+          clockOutTime: formatTo24h(row[7]),
+          clockOutLat: String(row[8] || ''), 
+          clockOutLong: String(row[9] || ''), 
+          siteId: String(row[10] || ''), 
+          workingHours: String(row[11] || '')
+        }));
+
       const employees: Employee[] = (raw.employees || []).slice(1)
-        .filter((row: any[]) => row.length >= 2 && row[1])
+        .filter((row: any[]) => row.length >= 2)
         .map((row: any[]) => ({
           lineId: String(row[0] || ''), 
-          staffId: String(row[1] || '').trim(), 
-          name: String(row[2] || '').trim(), 
-          siteId: String(row[3] || '').trim(), 
+          staffId: String(row[1] || ''), 
+          name: String(row[2] || ''), 
+          siteId: String(row[3] || ''), 
           roleType: String(row[4] || ''), 
           position: String(row[5] || '')
         }));
 
-      // 2. Process Logs using discovered employees for column matching
-      const logs: LogEntry[] = (raw.logs || []).slice(1)
-        .filter((row: any[]) => row.length >= 2) 
-        .map((row: any[]) => {
-          let staffId = '';
-          let staffIdx = -1;
-          let dateIdx = -1;
-          let timeIdx = -1;
-          
-          // ค้นหา Staff ID
-          for (let i = 0; i < Math.min(row.length, 5); i++) {
-            const val = String(row[i] || '').trim();
-            if (employees.some(e => e.staffId === val)) {
-              staffId = val;
-              staffIdx = i;
-              break;
-            }
-          }
-
-          // ค้นหาคอลัมน์วันที่และเวลา (สแกนทั้งแถว)
-          for (let i = 0; i < row.length; i++) {
-            const val = String(row[i] || '').trim();
-            if (dateIdx === -1 && (val.includes('/') || (val.includes('-') && val.length >= 8))) {
-              dateIdx = i;
-            } else if (timeIdx === -1 && val.includes(':') && val.length <= 8) {
-              timeIdx = i;
-            }
-          }
-
-          // Fallback ถ้าหาไม่เจอ
-          if (staffIdx === -1) staffIdx = 0;
-          if (dateIdx === -1) dateIdx = staffIdx + 2;
-          if (timeIdx === -1) timeIdx = staffIdx + 3;
-
-          return {
-            staffId: staffId || String(row[staffIdx] || '').trim(), 
-            name: String(row[staffIdx + 1] || '').trim(), 
-            dateClockIn: String(row[dateIdx] || '').trim(), 
-            clockInTime: formatTo24h(row[timeIdx]),
-            clockInLat: String(row[timeIdx + 1] || ''), 
-            clockInLong: String(row[timeIdx + 2] || ''), 
-            dateClockOut: String(row[timeIdx + 3] || '').trim(), 
-            clockOutTime: formatTo24h(row[timeIdx + 4]),
-            clockOutLat: String(row[timeIdx + 5] || ''), 
-            clockOutLong: String(row[timeIdx + 6] || ''), 
-            siteId: String(row[timeIdx + 7] || '').trim(), 
-            workingHours: String(row[timeIdx + 8] || '')
-          };
-        })
-        .filter(log => log.staffId && log.staffId !== 'undefined' && log.staffId !== '');
-
-      // 3. Process Shifts
       const shifts: Shift[] = (raw.shifts || []).slice(1)
         .filter((row: any[]) => row.length >= 2)
         .map((row: any[]) => ({
-          shiftCode: String(row[0] || '').trim(), 
+          shiftCode: String(row[0] || ''), 
           shiftName: String(row[1] || ''), 
           startTime: formatTo24h(row[2]), 
           endTime: formatTo24h(row[3]),
@@ -178,26 +109,22 @@ export default function App() {
 
       setData({ logs, employees, shifts });
       
-      // ปรับปรุงการหาช่วงวันที่: ถ้าหาไม่เจอให้ใช้ 30 วันย้อนหลังเป็นค่าเริ่มต้น
-      let minDate = subDays(new Date(), 30);
-      let maxDate = new Date();
-
+      // If no logs found, maybe adjust filter to show something
       if (logs.length > 0) {
-        const dates = logs.map(l => safeParseDate(l.dateClockIn).getTime()).filter(t => !isNaN(t));
+        const dates = logs.map(l => new Date(l.dateClockIn).getTime()).filter(t => !isNaN(t));
         if (dates.length > 0) {
-          minDate = new Date(Math.min(...dates));
-          maxDate = new Date(Math.max(...dates));
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          setFilters(prev => ({
+            ...prev,
+            startDate: format(minDate, 'yyyy-MM-dd'),
+            endDate: format(maxDate, 'yyyy-MM-dd')
+          }));
         }
       }
-
-      setFilters(prev => ({
-        ...prev,
-        startDate: format(minDate, 'yyyy-MM-dd'),
-        endDate: format(maxDate, 'yyyy-MM-dd')
-      }));
     } catch (e: any) {
       console.error('Fetch Error:', e);
-      alert(`เกิดข้อผิดพลาดในการดึงข้อมูล: ${e.message}`);
+      alert(`เกิดข้อผิดพลาดในการดึงข้อมูล: ${e.message}\nกรุณาตรวจสอบว่าได้ Deploy GAS เป็น Web App และตั้งค่า Access เป็น Anyone แล้ว`);
     } finally {
       setLoading(false);
     }
@@ -221,7 +148,6 @@ export default function App() {
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     setIsAuthenticated(false);
-    setUser(null);
     setData(null);
   };
 
@@ -229,16 +155,12 @@ export default function App() {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
-  const [showAll, setShowAll] = useState(false);
-
   const getProcessedRecords = useCallback((targetDate?: Date) => {
     if (!data) return [];
 
     return data.logs
       .filter(log => {
-        if (showAll) return true;
-        
-        const logDate = safeParseDate(log.dateClockIn);
+        const logDate = parseISO(log.dateClockIn);
         const dateMatch = targetDate 
           ? isSameDay(logDate, targetDate)
           : isWithinInterval(logDate, { 
@@ -273,24 +195,18 @@ export default function App() {
           siteId: log.siteId,
           name: log.name,
           shiftCode: shift?.shiftCode || 'N/A',
-          dateStart: log.dateClockIn ? format(safeParseDate(log.dateClockIn), 'dd/MM/yyyy') : '-',
+          dateStart: log.dateClockIn ? format(parseISO(log.dateClockIn), 'dd/MM/yyyy') : '-',
           startTime: log.clockInTime || '-',
-          dateEnd: log.dateClockOut ? format(safeParseDate(log.dateClockOut), 'dd/MM/yyyy') : '-',
+          dateEnd: log.dateClockOut ? format(parseISO(log.dateClockOut), 'dd/MM/yyyy') : '-',
           endTime: log.clockOutTime || '-',
           status
         } as AttendanceRecord;
       })
       .sort((a, b) => a.siteId.localeCompare(b.siteId) || a.startTime.localeCompare(b.startTime));
-  }, [data, filters, showAll]);
+  }, [data, filters]);
 
   if (isAuthenticated === null) return null;
-  if (!isAuthenticated) {
-    return <Login onLogin={(user) => {
-      setIsAuthenticated(true);
-      setUser(user);
-      fetchData();
-    }} />;
-  }
+  // AuthOverlay removed for GAS proxy mode
 
   const allRecords = getProcessedRecords();
   const yesterdayRecords = getProcessedRecords(subDays(new Date(), 1));
@@ -310,36 +226,18 @@ export default function App() {
       {/* Navbar */}
       <nav className="sticky top-0 bg-white border-b border-[#DBDBDB] z-40 px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 rounded-lg flex items-center justify-center text-white">
-                <BarChart2 className="w-5 h-5" />
-              </div>
-              <div className="flex flex-col">
-                <h1 className="text-xl font-bold tracking-tight leading-none">SMC Analytics</h1>
-                {user && <span className="text-[10px] text-[#8E8E8E] font-medium">{user.name} ({user.position})</span>}
-              </div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 rounded-lg flex items-center justify-center text-white">
+              <BarChart2 className="w-5 h-5" />
             </div>
+            <h1 className="text-xl font-bold tracking-tight">SMC Analytics</h1>
+          </div>
           <div className="flex items-center gap-4">
             {data && (
-              <div className="flex gap-2">
-                <div className="hidden md:block text-[10px] text-[#8E8E8E] font-mono bg-slate-50 px-2 py-1 rounded border border-[#DBDBDB]">
-                  Logs: <span className={data.logs.length > 0 ? 'text-emerald-600 font-bold' : 'text-rose-500'}>{data.logs.length}</span>
-                </div>
-                <div className="hidden md:block text-[10px] text-[#8E8E8E] font-mono bg-slate-50 px-2 py-1 rounded border border-[#DBDBDB]">
-                  Staff: <span className={data.employees.length > 0 ? 'text-emerald-600 font-bold' : 'text-rose-500'}>{data.employees.length}</span>
-                </div>
+              <div className="hidden md:block text-[10px] text-[#8E8E8E] font-mono bg-slate-50 px-2 py-1 rounded border border-[#DBDBDB]">
+                Logs: {data.logs.length} | Staff: {data.employees.length} | Shifts: {data.shifts.length}
               </div>
             )}
-            <button 
-              onClick={() => setShowAll(!showAll)}
-              className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${
-                showAll 
-                ? 'bg-amber-500 text-white border-amber-600 shadow-inner' 
-                : 'bg-white text-[#8E8E8E] border-[#DBDBDB] hover:bg-slate-50'
-              }`}
-            >
-              {showAll ? 'SHOWING ALL' : 'SHOW ALL'}
-            </button>
             <button 
               onClick={fetchData}
               disabled={loading}
@@ -382,50 +280,19 @@ export default function App() {
         )}
 
         {data && data.logs.length > 0 && allRecords.length === 0 && !loading && (
-          <div className="space-y-6">
-            <div className="ig-card p-12 text-center space-y-4">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto border border-[#DBDBDB]">
-                <RefreshCw className="w-8 h-8 text-slate-300" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-[#262626]">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</h3>
-                <p className="text-sm text-[#8E8E8E]">ลองเปลี่ยนช่วงวันที่หรือตัวกรองอื่นๆ</p>
-              </div>
+          <div className="ig-card p-12 text-center space-y-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto border border-[#DBDBDB]">
+              <RefreshCw className="w-8 h-8 text-slate-300" />
             </div>
-
-            {/* Diagnostic View */}
-            <div className="ig-card overflow-hidden border-rose-200">
-              <div className="p-4 bg-rose-50 border-b border-rose-200">
-                <h3 className="font-bold text-rose-700 text-sm flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" /> โหมดตรวจสอบข้อมูล (Diagnostic Mode)
-                </h3>
-                <p className="text-xs text-rose-600 mt-1">ระบบดึงข้อมูลมาได้ {data.logs.length} แถว แต่ไม่สามารถแสดงผลได้เนื่องจากเงื่อนไขการกรอง หรือโครงสร้างข้อมูลไม่ตรงกัน</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-[10px] text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100">
-                      {Array.from({ length: Math.min(data.logs[0] ? Object.keys(data.logs[0]).length : 0, 10) }).map((_, i) => (
-                        <th key={i} className="p-2 border border-slate-200 font-mono">Col {i}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.logs.slice(0, 5).map((log, i) => (
-                      <tr key={i}>
-                        <td className="p-2 border border-slate-200 font-mono">{log.staffId}</td>
-                        <td className="p-2 border border-slate-200 font-mono">{log.name}</td>
-                        <td className="p-2 border border-slate-200 font-mono">{log.dateClockIn}</td>
-                        <td className="p-2 border border-slate-200 font-mono">{log.clockInTime}</td>
-                        <td className="p-2 border border-slate-200 font-mono">{log.siteId}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="p-4 bg-slate-50 text-[10px] text-[#8E8E8E]">
-                <p>คำแนะนำ: ตรวจสอบว่า "รหัสพนักงาน" ในตารางด้านบน ตรงกับรหัสในหน้า Employ_DB หรือไม่ และ "วันที่" อยู่ในรูปแบบที่ถูกต้องหรือไม่</p>
-              </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-[#262626]">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</h3>
+              <p className="text-sm text-[#8E8E8E]">ลองเปลี่ยนช่วงวันที่หรือตัวกรองอื่นๆ</p>
+              <button 
+                onClick={() => fetchData()}
+                className="text-indigo-600 text-sm font-semibold mt-4 hover:underline"
+              >
+                รีเซ็ตตัวกรองและดึงข้อมูลใหม่
+              </button>
             </div>
           </div>
         )}
