@@ -28,22 +28,11 @@ export interface Shift {
   startTime: string;
   endTime: string;
   gracePeriod: number;
-  lateThreshold: string;
+  lateThreshold: number;
 }
 
-export interface DashboardStats {
-  totalStaff: number;
-  lateStaff: number;
-  onTimeStaff: number;
-}
-
-export interface AttendanceRecord {
-  siteId: string;
-  name: string;
-  shiftCode: string;
-  dateStart: string;
-  startTime: string;
-  dateEnd: string;
-  endTime: string;
-  status: 'สาย' | 'ไม่สาย' | 'ไม่ได้ทำงาน';
+export interface RawData {
+  logs: any[][];
+  employees: any[][];
+  shifts: any[][];
 }
