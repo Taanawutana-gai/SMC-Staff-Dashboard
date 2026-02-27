@@ -56,8 +56,15 @@ export default function App() {
     try {
       const res = await fetch('/api/sheets/data');
       if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Failed to fetch: ${res.status} ${errText}`);
+        let errorMessage = `Failed to fetch: ${res.status}`;
+        try {
+          const errJson = await res.json();
+          if (errJson.message) errorMessage += ` - ${errJson.message}`;
+        } catch (e) {
+          const errText = await res.text();
+          if (errText) errorMessage += ` - ${errText}`;
+        }
+        throw new Error(errorMessage);
       }
       const raw = await res.json();
       console.log('Raw data from GAS:', raw);

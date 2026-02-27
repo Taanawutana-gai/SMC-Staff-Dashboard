@@ -12,10 +12,7 @@ dotenv.config();
 // Extend session type
 declare module 'express-session' {
   interface SessionData {
-    user: {
-      name: string;
-      position: string;
-    };
+    tokens: any;
   }
 }
 
@@ -24,8 +21,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
-
-app.set('trust proxy', 1); // Trust the first proxy (nginx)
 
 app.use(express.json());
 app.use(cookieParser());
@@ -40,15 +35,15 @@ app.use(session({
   }
 }));
 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyE8l450y2K-fOMkrrpd3BxccIcZI-aCo-9Lrf0ozYsotlaRpRr5vLLMUzpnbGObEg7tQ/exec';
+const GAS_URL = process.env.GAS_URL || 'https://script.google.com/macros/s/AKfycbypFmOQ42WgBG0SElOOYH_f-zEFDNXzjZpj9kvws04eHLWMD4Gi789XKLFNNvViIcZ5fQ/exec';
 
 // Proxy for GAS Data
 app.get('/api/sheets/data', async (req, res) => {
-  if (!req.session.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  if (!process.env.GAS_URL && GAS_URL.includes('AKfycbypFmOQ42WgBG0SElOOYH_f-zEFDNXzjZpj9kvws04eHLWMD4Gi789XKLFNNvViIcZ5fQ')) {
+    console.log('Using user-provided GAS URL.');
   }
+
   try {
-    // สร้าง URL โดยใช้ URLSearchParams เพื่อความมาตรฐาน
     const params = new URLSearchParams({
       action: 'getData',
       t: Date.now().toString()
@@ -61,7 +56,6 @@ app.get('/api/sheets/data', async (req, res) => {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
       },
       redirect: 'follow'
     });
@@ -69,7 +63,12 @@ app.get('/api/sheets/data', async (req, res) => {
     const text = await response.text();
 
     if (!response.ok) {
-      return res.status(response.status).send(`GAS HTTP Error: ${response.status}`);
+      console.error(`GAS Error Response (${response.status}):`, text);
+      return res.status(response.status).json({ 
+        error: 'GAS_FETCH_ERROR', 
+        status: response.status,
+        message: text.substring(0, 500) // Send part of the error body for debugging
+      });
     }
 
     try {
@@ -95,62 +94,9 @@ app.get('/api/sheets/data', async (req, res) => {
   }
 });
 
-// Auth Routes
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-
-  try {
-    const params = new URLSearchParams({ action: 'getData' });
-    const response = await fetch(`${GAS_URL}?${params.toString()}`);
-    const data = await response.json();
-
-    const employees = data.employees || [];
-    // Skip header row
-    const user = employees.slice(1).find((row: any[]) => {
-      const sheetStaffId = String(row[1] || '').trim(); // Column B: staff id
-      const sheetName = String(row[2] || '').trim();    // Column C: Name
-      const sheetPosition = String(row[5] || '').trim(); // Column F: Position
-
-      const isMatch = sheetName === username && sheetStaffId === password;
-      const hasPermission = sheetPosition === 'Operation Manager' || sheetPosition === 'General Manager';
-
-      return isMatch && hasPermission;
-    });
-
-    if (user) {
-      req.session.user = {
-        name: user[2],
-        position: user[5]
-      };
-      
-      // Explicitly save session before responding to avoid race conditions
-      req.session.save((err) => {
-        if (err) {
-          console.error('Session save error:', err);
-          return res.status(500).json({ error: 'ไม่สามารถบันทึกเซสชันได้' });
-        }
-        res.json({ success: true, user: req.session.user });
-      });
-    } else {
-      res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง หรือไม่มีสิทธิ์เข้าใช้งาน' });
-    }
-  } catch (error) {
-    console.error('Login Error:', error);
-    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์' });
-  }
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true });
-  });
-});
-
+// Remove OAuth routes as we are using GAS Proxy
 app.get('/api/auth/status', (req, res) => {
-  res.json({ 
-    isAuthenticated: !!req.session.user,
-    user: req.session.user || null
-  });
+  res.json({ isAuthenticated: true }); // Always true for GAS proxy mode
 });
 
 // Vite Middleware
