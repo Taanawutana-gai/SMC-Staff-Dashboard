@@ -35,11 +35,11 @@ app.use(session({
   }
 }));
 
-const GAS_URL = process.env.GAS_URL || 'https://script.google.com/macros/s/AKfycbypFmOQ42WgBG0SElOOYH_f-zEFDNXzjZpj9kvws04eHLWMD4Gi789XKLFNNvViIcZ5fQ/exec';
+const GAS_URL = process.env.GAS_URL || 'https://script.google.com/macros/s/AKfycbyvRUhqBoxy7NuozelXiI2azcpSo0pwI7A8TJJfMNZEt-mwVtq8Z7QvXD-5m-aVGu9LyA/exec';
 
 // Proxy for GAS Data
 app.get('/api/sheets/data', async (req, res) => {
-  if (!process.env.GAS_URL && GAS_URL.includes('AKfycbypFmOQ42WgBG0SElOOYH_f-zEFDNXzjZpj9kvws04eHLWMD4Gi789XKLFNNvViIcZ5fQ')) {
+  if (!process.env.GAS_URL && GAS_URL.includes('AKfycbyvRUhqBoxy7NuozelXiI2azcpSo0pwI7A8TJJfMNZEt-mwVtq8Z7QvXD-5m-aVGu9LyA')) {
     console.log('Using user-provided GAS URL.');
   }
 
