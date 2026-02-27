@@ -11,6 +11,8 @@ export interface LogEntry {
   clockOutLong: string;
   siteId: string;
   workingHours: string;
+  shiftCode?: string; // Inferred or joined
+  status?: 'On-time' | 'Late' | 'Absent' | 'No-Show';
 }
 
 export interface Employee {
@@ -35,4 +37,11 @@ export interface RawData {
   logs: any[][];
   employees: any[][];
   shifts: any[][];
+}
+
+export interface FilterState {
+  startDate: string;
+  endDate: string;
+  siteId: string;
+  staffId: string;
 }
