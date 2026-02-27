@@ -13,7 +13,18 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/sheets/data');
+      // ดึงข้อมูลโดยตรงจาก GAS (Client-side fetch)
+      const GAS_URL = 'https://script.google.com/macros/s/AKfycbyvRUhqBoxy7NuozelXiI2azcpSo0pwI7A8TJJfMNZEt-mwVtq8Z7QvXD-5m-aVGu9LyA/exec';
+      const params = new URLSearchParams({
+        action: 'getData',
+        t: Date.now().toString()
+      });
+      
+      const res = await fetch(`${GAS_URL}?${params.toString()}`, {
+        method: 'GET',
+        redirect: 'follow' // สำคัญมากสำหรับการดึงข้อมูลจาก GAS
+      });
+
       const text = await res.text();
       
       if (!res.ok) {
