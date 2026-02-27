@@ -55,18 +55,21 @@ export default function App() {
     setLoading(true);
     try {
       const res = await fetch('/api/sheets/data');
+      const text = await res.text();
+      
       if (!res.ok) {
         let errorMessage = `Failed to fetch: ${res.status}`;
         try {
-          const errJson = await res.json();
+          const errJson = JSON.parse(text);
           if (errJson.message) errorMessage += ` - ${errJson.message}`;
+          else if (errJson.error) errorMessage += ` - ${errJson.error}`;
         } catch (e) {
-          const errText = await res.text();
-          if (errText) errorMessage += ` - ${errText}`;
+          if (text) errorMessage += ` - ${text.substring(0, 100)}`;
         }
         throw new Error(errorMessage);
       }
-      const raw = await res.json();
+      
+      const raw = JSON.parse(text);
       console.log('Raw data from GAS:', raw);
 
       if (!raw.logs || !raw.employees || !raw.shifts) {
