@@ -45,5 +45,5 @@ export interface AttendanceRecord {
   startTime: string;
   dateEnd: string;
   endTime: string;
-  status: 'สาย' | 'ไม่สาย' | 'ผิดปกติ';
+  status: 'สาย' | 'ไม่สาย' | 'ไม่ได้ทำงาน';
 }

@@ -12,7 +12,10 @@ dotenv.config();
 // Extend session type
 declare module 'express-session' {
   interface SessionData {
-    tokens: any;
+    user: {
+      name: string;
+      position: string;
+    };
   }
 }
 
@@ -21,6 +24,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
+
+app.set('trust proxy', 1); // Trust the first proxy (nginx)
 
 app.use(express.json());
 app.use(cookieParser());
@@ -39,6 +44,9 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbyE8l450y2K-fOMkrrpd3Bx
 
 // Proxy for GAS Data
 app.get('/api/sheets/data', async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     // สร้าง URL โดยใช้ URLSearchParams เพื่อความมาตรฐาน
     const params = new URLSearchParams({
@@ -87,9 +95,62 @@ app.get('/api/sheets/data', async (req, res) => {
   }
 });
 
-// Remove OAuth routes as we are using GAS Proxy
+// Auth Routes
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const params = new URLSearchParams({ action: 'getData' });
+    const response = await fetch(`${GAS_URL}?${params.toString()}`);
+    const data = await response.json();
+
+    const employees = data.employees || [];
+    // Skip header row
+    const user = employees.slice(1).find((row: any[]) => {
+      const sheetStaffId = String(row[1] || '').trim(); // Column B: staff id
+      const sheetName = String(row[2] || '').trim();    // Column C: Name
+      const sheetPosition = String(row[5] || '').trim(); // Column F: Position
+
+      const isMatch = sheetName === username && sheetStaffId === password;
+      const hasPermission = sheetPosition === 'Operation Manager' || sheetPosition === 'General Manager';
+
+      return isMatch && hasPermission;
+    });
+
+    if (user) {
+      req.session.user = {
+        name: user[2],
+        position: user[5]
+      };
+      
+      // Explicitly save session before responding to avoid race conditions
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).json({ error: 'ไม่สามารถบันทึกเซสชันได้' });
+        }
+        res.json({ success: true, user: req.session.user });
+      });
+    } else {
+      res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง หรือไม่มีสิทธิ์เข้าใช้งาน' });
+    }
+  } catch (error) {
+    console.error('Login Error:', error);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.json({ success: true });
+  });
+});
+
 app.get('/api/auth/status', (req, res) => {
-  res.json({ isAuthenticated: true }); // Always true for GAS proxy mode
+  res.json({ 
+    isAuthenticated: !!req.session.user,
+    user: req.session.user || null
+  });
 });
 
 // Vite Middleware

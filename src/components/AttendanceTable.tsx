@@ -20,17 +20,15 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({ title, records
               <th className="data-grid-header"><div className="flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Site ID</div></th>
               <th className="data-grid-header"><div className="flex items-center gap-1.5"><User className="w-3 h-3" /> Name</div></th>
               <th className="data-grid-header"><div className="flex items-center gap-1.5"><Hash className="w-3 h-3" /> Shift Code</div></th>
-              <th className="data-grid-header"><div className="flex items-center gap-1.5"><Calendar className="w-3 h-3" /> Date Start</div></th>
-              <th className="data-grid-header"><div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> Start Time</div></th>
-              <th className="data-grid-header"><div className="flex items-center gap-1.5"><Calendar className="w-3 h-3" /> Date End</div></th>
-              <th className="data-grid-header"><div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> End Time</div></th>
-              <th className="data-grid-header">สถานะ</th>
+              <th className="data-grid-header"><div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> Start Time (เข้างาน)</div></th>
+              <th className="data-grid-header"><div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> End Time (เลิกงาน)</div></th>
+              <th className="data-grid-header">สถานะ สาย/ไม่สาย/ไม่ได้ทำงาน</th>
             </tr>
           </thead>
           <tbody>
             {records.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-[#8E8E8E] text-sm">
+                <td colSpan={6} className="py-12 text-center text-[#8E8E8E] text-sm">
                   ไม่พบข้อมูลการบันทึกเวลา
                 </td>
               </tr>
@@ -40,9 +38,7 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({ title, records
                   <td className="py-3 px-4 text-sm font-medium text-[#262626]">{record.siteId}</td>
                   <td className="py-3 px-4 text-sm text-[#262626]">{record.name}</td>
                   <td className="py-3 px-4 text-xs text-[#8E8E8E] font-mono">{record.shiftCode}</td>
-                  <td className="py-3 px-4 text-sm text-[#262626]">{record.dateStart}</td>
                   <td className="py-3 px-4 text-sm text-[#262626]">{record.startTime}</td>
-                  <td className="py-3 px-4 text-sm text-[#262626]">{record.dateEnd}</td>
                   <td className="py-3 px-4 text-sm text-[#262626]">{record.endTime}</td>
                   <td className="py-3 px-4">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm ${

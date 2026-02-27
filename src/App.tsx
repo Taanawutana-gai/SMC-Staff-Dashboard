@@ -180,7 +180,7 @@ export default function App() {
         const shift = data.shifts[0]; 
         
         // Late calculation
-        let status: 'สาย' | 'ไม่สาย' | 'ผิดปกติ' = 'ไม่สาย';
+        let status: 'สาย' | 'ไม่สาย' | 'ไม่ได้ทำงาน' = 'ไม่สาย';
         if (log.clockInTime && shift) {
           const [inH, inM] = log.clockInTime.split(':').map(Number);
           const [sH, sM] = shift.startTime.split(':').map(Number);
@@ -188,7 +188,7 @@ export default function App() {
           const sTotal = sH * 60 + sM + shift.gracePeriod;
           if (inTotal > sTotal) status = 'สาย';
         } else if (!log.clockInTime) {
-          status = 'ผิดปกติ';
+          status = 'ไม่ได้ทำงาน';
         }
 
         return {
@@ -212,11 +212,22 @@ export default function App() {
   const yesterdayRecords = getProcessedRecords(subDays(new Date(), 1));
   const todayRecords = getProcessedRecords(new Date());
 
-  const stats = {
-    total: allRecords.length,
-    late: allRecords.filter(r => r.status === 'สาย').length,
-    onTime: allRecords.filter(r => r.status === 'ไม่สาย').length
-  };
+  // Group stats by site
+  const siteStatsMap = allRecords.reduce((acc, record) => {
+    if (!acc[record.siteId]) {
+      acc[record.siteId] = { siteId: record.siteId, total: 0, late: 0, onTime: 0 };
+    }
+    acc[record.siteId].total++;
+    if (record.status === 'สาย') acc[record.siteId].late++;
+    if (record.status === 'ไม่สาย') acc[record.siteId].onTime++;
+    return acc;
+  }, {} as Record<string, { siteId: string; total: number; late: number; onTime: number }>);
+
+  const siteStats = Object.values(siteStatsMap).sort((a, b) => {
+    const statA = a as { siteId: string };
+    const statB = b as { siteId: string };
+    return statA.siteId.localeCompare(statB.siteId);
+  });
 
   const sites = Array.from(new Set(data?.employees.map(e => e.siteId) || []));
   const staff = data?.employees.map(e => ({ id: e.staffId, name: e.name })) || [];
@@ -299,9 +310,7 @@ export default function App() {
 
         {/* Board 2: Summary */}
         <SummaryBoard 
-          total={stats.total}
-          late={stats.late}
-          onTime={stats.onTime}
+          siteStats={siteStats}
         />
 
         {/* Board 3: Yesterday */}
