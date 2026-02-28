@@ -65,11 +65,9 @@ export default function AttendanceTable({ logs, title }: Props) {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-slate-700">{log.clockInTime}</div>
-                    <div className="text-[10px] text-slate-400">{log.dateClockIn}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-slate-700">{log.clockOutTime || '--:--'}</div>
-                    <div className="text-[10px] text-slate-400">{log.dateClockOut || '-'}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${

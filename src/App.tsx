@@ -60,22 +60,79 @@ export default function App() {
       // Process Logs with Status Calculation
       const logs: LogEntry[] = raw.logs.slice(1).map(row => {
         const staffId = String(row[0] || '');
-        const clockInTime = String(row[3] || '');
-        
-        // Find employee to get shift (assuming shift is linked via site or employee)
-        // For this demo, we'll try to find a shift. If not explicitly linked, we'll use a default or first shift.
-        const emp = employees.find(e => e.staffId === staffId);
-        const shift = shifts[0]; // Fallback to first shift if not found
+        const rawClockIn = String(row[3] || '');
+        const rawClockOut = String(row[7] || '');
+        const rawDate = String(row[2] || '');
 
+        // Helper to extract HH:mm from various formats
+        const formatTime = (timeStr: string) => {
+          if (!timeStr || timeStr === '-') return timeStr;
+          // If it's a full ISO string or has a space (date time)
+          if (timeStr.includes('T') || timeStr.includes(' ')) {
+            const timePart = timeStr.includes('T') ? timeStr.split('T')[1] : timeStr.split(' ')[1];
+            if (timePart) {
+              const parts = timePart.split(':');
+              return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+            }
+          }
+          // If it's already HH:mm:ss or HH:mm
+          const parts = timeStr.split(':');
+          if (parts.length >= 2) {
+            return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+          }
+          return timeStr;
+        };
+
+        const clockInTime = formatTime(rawClockIn);
+        const clockOutTime = formatTime(rawClockOut);
+        
+        // Normalize date to yyyy-MM-dd (Extremely Robust Version)
+        let formattedDate = '';
+        try {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            // If JS can parse it, use it (handles ISO, GMT, etc.)
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            formattedDate = `${y}-${m}-${day}`;
+          } else if (rawDate.includes('/')) {
+            const parts = rawDate.split(' ')[0].split('/');
+            if (parts.length === 3) {
+              // Handle DD/MM/YYYY or YYYY/MM/DD
+              if (parts[0].length === 4) { // YYYY/MM/DD
+                formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              } else { // DD/MM/YYYY
+                const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                formattedDate = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+            }
+          } else if (rawDate.includes('-')) {
+            const parts = rawDate.split(' ')[0].split('-');
+            if (parts.length === 3) {
+              if (parts[0].length === 4) { // YYYY-MM-DD
+                formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              } else { // DD-MM-YYYY
+                const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                formattedDate = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Date parsing error for:", rawDate, e);
+        }
+
+        // Fallback if formatting failed
+        if (!formattedDate) formattedDate = rawDate;
+
+        const shift = shifts[0]; 
         let status: 'On-time' | 'Late' = 'On-time';
         if (clockInTime && shift) {
           const [cHours, cMins] = clockInTime.split(':').map(Number);
           const [sHours, sMins] = shift.startTime.split(':').map(Number);
-          
-          const clockInTotalMins = cHours * 60 + cMins;
-          const shiftStartTotalMins = sHours * 60 + sMins;
-          
-          if (clockInTotalMins > shiftStartTotalMins + shift.lateThreshold) {
+          const clockInTotalMins = (cHours || 0) * 60 + (cMins || 0);
+          const shiftStartTotalMins = (sHours || 0) * 60 + (sMins || 0);
+          if (clockInTotalMins > shiftStartTotalMins + (shift.lateThreshold || 0)) {
             status = 'Late';
           }
         }
@@ -83,12 +140,12 @@ export default function App() {
         return {
           staffId,
           name: String(row[1] || ''),
-          dateClockIn: String(row[2] || ''),
+          dateClockIn: formattedDate,
           clockInTime,
           clockInLat: String(row[4] || ''),
           clockInLong: String(row[5] || ''),
           dateClockOut: String(row[6] || ''),
-          clockOutTime: String(row[7] || ''),
+          clockOutTime,
           clockOutLat: String(row[8] || ''),
           clockOutLong: String(row[9] || ''),
           siteId: String(row[10] || ''),
@@ -202,7 +259,7 @@ export default function App() {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-8">
-              {/* Board 3: Yesterday */}
+              {/* Dashboard 2: Yesterday */}
               <motion.section 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }}
@@ -210,7 +267,7 @@ export default function App() {
               >
                 <div className="flex items-center gap-2 mb-4">
                   <CalendarDays className="w-5 h-5 text-indigo-500" />
-                  <h2 className="text-xl font-bold text-slate-800">Yesterday's Attendance</h2>
+                  <h2 className="text-xl font-bold text-slate-800">Dashboard 2: Yesterday's Attendance</h2>
                   <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                     {format(subDays(new Date(), 1), 'MMM dd, yyyy')}
                   </span>
@@ -218,7 +275,7 @@ export default function App() {
                 <AttendanceTable logs={yesterdayLogs} title="Yesterday Detailed View" />
               </motion.section>
 
-              {/* Board 4: Today */}
+              {/* Dashboard 3: Today */}
               <motion.section 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }}
@@ -226,7 +283,7 @@ export default function App() {
               >
                 <div className="flex items-center gap-2 mb-4">
                   <Clock className="w-5 h-5 text-emerald-500" />
-                  <h2 className="text-xl font-bold text-slate-800">Today's Real-time View</h2>
+                  <h2 className="text-xl font-bold text-slate-800">Dashboard 3: Today's Real-time View</h2>
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                     {format(new Date(), 'MMM dd, yyyy')}
                   </span>
