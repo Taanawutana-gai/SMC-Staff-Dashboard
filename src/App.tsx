@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { LogEntry, RawData, FilterState, Employee, Shift } from './types';
 import AttendanceTable from './components/AttendanceTable';
 import FilterBoard from './components/FilterBoard';
-import SummaryBoard from './components/SummaryBoard';
 import { RefreshCw, AlertCircle, Database, LayoutDashboard, CalendarDays, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format, subDays, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
@@ -130,56 +129,21 @@ export default function App() {
     });
   }, [rawData, filters]);
 
-  // Helper to get full attendance list for a specific date
-  const getFullAttendanceForDate = (dateStr: string) => {
-    if (!rawData) return [];
-    
-    const logsForDate = filteredLogs.filter(log => log.dateClockIn === dateStr);
-    
-    // Get all employees (filtered by site/staff if filters are active)
-    const activeEmployees = rawData.employees.filter(emp => {
-      const matchSite = !filters.siteId || emp.siteId === filters.siteId;
-      const matchStaff = !filters.staffId || emp.staffId === filters.staffId;
-      return matchSite && matchStaff;
-    });
-
-    const fullList: LogEntry[] = activeEmployees.map(emp => {
-      const log = logsForDate.find(l => l.staffId === emp.staffId);
-      if (log) return log;
-
-      // If no log found, they are absent
-      return {
-        staffId: emp.staffId,
-        name: emp.name,
-        dateClockIn: dateStr,
-        clockInTime: '-',
-        clockInLat: '',
-        clockInLong: '',
-        dateClockOut: '',
-        clockOutTime: '-',
-        clockOutLat: '',
-        clockOutLong: '',
-        siteId: emp.siteId,
-        workingHours: '-',
-        shiftCode: 'N/A',
-        status: 'Absent' as any
-      };
-    });
-
-    return fullList.sort((a, b) => a.siteId.localeCompare(b.siteId) || a.clockInTime.localeCompare(b.clockInTime));
-  };
-
-  // Yesterday's Logs
+  // Yesterday's Logs (Logs ONLY)
   const yesterdayLogs = useMemo(() => {
     const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-    return getFullAttendanceForDate(yesterday);
-  }, [filteredLogs, rawData, filters]);
+    return filteredLogs
+      .filter(log => log.dateClockIn === yesterday)
+      .sort((a, b) => a.siteId.localeCompare(b.siteId) || a.clockInTime.localeCompare(b.clockInTime));
+  }, [filteredLogs]);
 
-  // Today's Logs
+  // Today's Logs (Logs ONLY)
   const todayLogs = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    return getFullAttendanceForDate(today);
-  }, [filteredLogs, rawData, filters]);
+    return filteredLogs
+      .filter(log => log.dateClockIn === today)
+      .sort((a, b) => a.siteId.localeCompare(b.siteId) || a.clockInTime.localeCompare(b.clockInTime));
+  }, [filteredLogs]);
 
   const uniqueSites = useMemo(() => Array.from(new Set(rawData?.employees.map(e => e.siteId) || [])), [rawData]);
   const uniqueStaffIds = useMemo(() => Array.from(new Set(rawData?.employees.map(e => e.staffId) || [])), [rawData]);
@@ -237,15 +201,6 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* Board 2: Summary */}
-            <motion.section 
-              initial={{ opacity: 0, y: 20 }} 
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <SummaryBoard logs={filteredLogs} />
-            </motion.section>
-
             <div className="grid grid-cols-1 gap-8">
               {/* Board 3: Yesterday */}
               <motion.section 
