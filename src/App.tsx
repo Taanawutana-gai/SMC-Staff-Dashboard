@@ -5,6 +5,9 @@ import FilterBoard from './components/FilterBoard';
 import { RefreshCw, AlertCircle, Database, LayoutDashboard, CalendarDays, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format, subDays, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+
+const THAILAND_TZ = 'Asia/Bangkok';
 
 export default function App() {
   const [rawData, setRawData] = useState<{ logs: LogEntry[], employees: Employee[], shifts: Shift[] } | null>(null);
@@ -16,6 +19,8 @@ export default function App() {
     siteId: '',
     staffId: ''
   });
+
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -37,7 +42,6 @@ export default function App() {
       
       const raw: RawData = JSON.parse(text);
       
-      // Process Shifts
       const shifts: Shift[] = raw.shifts.slice(1).map(row => ({
         shiftCode: String(row[0] || ''),
         shiftName: String(row[1] || ''),
@@ -47,7 +51,6 @@ export default function App() {
         lateThreshold: Number(row[5] || 0)
       }));
 
-      // Process Employees
       const employees: Employee[] = raw.employees.slice(1).map(row => ({
         lineId: String(row[0] || ''),
         staffId: String(row[1] || ''),
@@ -57,77 +60,61 @@ export default function App() {
         position: String(row[5] || '')
       }));
 
-      // Process Logs with Status Calculation
+      // Process Logs
       const logs: LogEntry[] = raw.logs.slice(1).map(row => {
         const staffId = String(row[0] || '');
         const rawClockIn = String(row[3] || '');
         const rawClockOut = String(row[7] || '');
         const rawDate = String(row[2] || '');
 
-        // Helper to extract HH:mm from various formats
         const formatTime = (timeStr: string) => {
-          if (!timeStr || timeStr === '-') return timeStr;
-          // If it's a full ISO string or has a space (date time)
-          if (timeStr.includes('T') || timeStr.includes(' ')) {
-            const timePart = timeStr.includes('T') ? timeStr.split('T')[1] : timeStr.split(' ')[1];
-            if (timePart) {
-              const parts = timePart.split(':');
-              return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-            }
+          if (!timeStr || timeStr === '-' || timeStr === 'null' || timeStr === 'undefined') return '-';
+          
+          // 1. Handle ISO/Full Date strings (convert to Thailand time)
+          if (timeStr.length > 10 && (timeStr.includes('T') || timeStr.includes('GMT') || (timeStr.includes('-') && timeStr.includes(':')))) {
+            try {
+              const d = new Date(timeStr);
+              if (!isNaN(d.getTime())) {
+                const zoned = toZonedTime(d, THAILAND_TZ);
+                return format(zoned, 'HH:mm');
+              }
+            } catch (e) {}
           }
-          // If it's already HH:mm:ss or HH:mm
-          const parts = timeStr.split(':');
-          if (parts.length >= 2) {
-            return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+
+          // 2. Handle simple time strings (HH:mm:ss or HH:mm)
+          const timeMatch = timeStr.match(/(\d{1,2}):(\d{1,2})/);
+          if (timeMatch) {
+            return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2].padStart(2, '0')}`;
           }
-          return timeStr;
+          return timeStr.trim();
         };
 
         const clockInTime = formatTime(rawClockIn);
         const clockOutTime = formatTime(rawClockOut);
         
-        // Normalize date to yyyy-MM-dd (Extremely Robust Version)
         let formattedDate = '';
         try {
           const d = new Date(rawDate);
           if (!isNaN(d.getTime())) {
-            // If JS can parse it, use it (handles ISO, GMT, etc.)
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            formattedDate = `${y}-${m}-${day}`;
+            const zoned = toZonedTime(d, THAILAND_TZ);
+            formattedDate = format(zoned, 'yyyy-MM-dd');
           } else if (rawDate.includes('/')) {
             const parts = rawDate.split(' ')[0].split('/');
             if (parts.length === 3) {
-              // Handle DD/MM/YYYY or YYYY/MM/DD
-              if (parts[0].length === 4) { // YYYY/MM/DD
+              if (parts[0].length === 4) {
                 formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-              } else { // DD/MM/YYYY
-                const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-                formattedDate = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-              }
-            }
-          } else if (rawDate.includes('-')) {
-            const parts = rawDate.split(' ')[0].split('-');
-            if (parts.length === 3) {
-              if (parts[0].length === 4) { // YYYY-MM-DD
-                formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-              } else { // DD-MM-YYYY
+              } else {
                 const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
                 formattedDate = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
               }
             }
           }
-        } catch (e) {
-          console.error("Date parsing error for:", rawDate, e);
-        }
-
-        // Fallback if formatting failed
+        } catch (e) {}
         if (!formattedDate) formattedDate = rawDate;
 
         const shift = shifts[0]; 
         let status: 'On-time' | 'Late' = 'On-time';
-        if (clockInTime && shift) {
+        if (clockInTime && clockInTime !== '-' && shift) {
           const [cHours, cMins] = clockInTime.split(':').map(Number);
           const [sHours, sMins] = shift.startTime.split(':').map(Number);
           const clockInTotalMins = (cHours || 0) * 60 + (cMins || 0);
@@ -156,6 +143,7 @@ export default function App() {
       });
 
       setRawData({ logs, employees, shifts });
+      setLastSynced(format(toZonedTime(new Date(), THAILAND_TZ), 'HH:mm:ss'));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -188,7 +176,8 @@ export default function App() {
 
   // Yesterday's Logs (Logs ONLY)
   const yesterdayLogs = useMemo(() => {
-    const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    const nowInThailand = toZonedTime(new Date(), THAILAND_TZ);
+    const yesterday = format(subDays(nowInThailand, 1), 'yyyy-MM-dd');
     return filteredLogs
       .filter(log => log.dateClockIn === yesterday)
       .sort((a, b) => a.siteId.localeCompare(b.siteId) || a.clockInTime.localeCompare(b.clockInTime));
@@ -196,7 +185,8 @@ export default function App() {
 
   // Today's Logs (Logs ONLY)
   const todayLogs = useMemo(() => {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const nowInThailand = toZonedTime(new Date(), THAILAND_TZ);
+    const today = format(nowInThailand, 'yyyy-MM-dd');
     return filteredLogs
       .filter(log => log.dateClockIn === today)
       .sort((a, b) => a.siteId.localeCompare(b.siteId) || a.clockInTime.localeCompare(b.clockInTime));
@@ -216,7 +206,14 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-lg font-extrabold tracking-tight text-slate-800">SMC Staff Analytics</h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Data Dashboard v2.0</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Data Dashboard v2.0</p>
+                {lastSynced && (
+                  <span className="text-[9px] text-indigo-400 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100/50">
+                    Synced: {lastSynced}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button 
@@ -269,7 +266,7 @@ export default function App() {
                   <CalendarDays className="w-5 h-5 text-indigo-500" />
                   <h2 className="text-xl font-bold text-slate-800">Dashboard 2: Yesterday's Attendance</h2>
                   <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                    {format(subDays(new Date(), 1), 'MMM dd, yyyy')}
+                    {format(subDays(toZonedTime(new Date(), THAILAND_TZ), 1), 'MMM dd, yyyy')}
                   </span>
                 </div>
                 <AttendanceTable logs={yesterdayLogs} title="Yesterday Detailed View" />
@@ -285,7 +282,7 @@ export default function App() {
                   <Clock className="w-5 h-5 text-emerald-500" />
                   <h2 className="text-xl font-bold text-slate-800">Dashboard 3: Today's Real-time View</h2>
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    {format(new Date(), 'MMM dd, yyyy')}
+                    {format(toZonedTime(new Date(), THAILAND_TZ), 'MMM dd, yyyy')}
                   </span>
                 </div>
                 <AttendanceTable logs={todayLogs} title="Current Day Detailed View" />
