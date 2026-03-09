@@ -139,28 +139,32 @@ export default function App() {
         return timeStr.trim();
       };
 
-      const clockInTime = formatTime(rawClockIn);
-      const clockOutTime = formatTime(rawClockOut);
-      
-      let formattedDate = '';
-      try {
-        const d = new Date(rawDate);
-        if (!isNaN(d.getTime())) {
-          const zoned = toZonedTime(d, THAILAND_TZ);
-          formattedDate = format(zoned, 'yyyy-MM-dd');
-        } else if (rawDate.includes('/')) {
-          const parts = rawDate.split(' ')[0].split('/');
-          if (parts.length === 3) {
-            if (parts[0].length === 4) {
-              formattedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-            } else {
-              const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-              formattedDate = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      const formatDate = (dateStr: string) => {
+        if (!dateStr || dateStr === '-' || dateStr === 'null' || dateStr === 'undefined') return '-';
+        try {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            const zoned = toZonedTime(d, THAILAND_TZ);
+            return format(zoned, 'yyyy-MM-dd');
+          } else if (dateStr.includes('/')) {
+            const parts = dateStr.split(' ')[0].split('/');
+            if (parts.length === 3) {
+              if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              } else {
+                const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
             }
           }
-        }
-      } catch (e) {}
-      if (!formattedDate) formattedDate = rawDate;
+        } catch (e) {}
+        return dateStr.trim();
+      };
+
+      const clockInTime = formatTime(rawClockIn);
+      const clockOutTime = formatTime(rawClockOut);
+      const dateClockIn = formatDate(rawDate);
+      const dateClockOut = formatDate(String(row[6] || ''));
 
       const shift = shifts[0]; 
       let status: 'On-time' | 'Late' = 'On-time';
@@ -177,11 +181,11 @@ export default function App() {
       return {
         staffId,
         name: String(row[1] || ''),
-        dateClockIn: formattedDate,
+        dateClockIn,
         clockInTime,
         clockInLat: String(row[4] || ''),
         clockInLong: String(row[5] || ''),
-        dateClockOut: String(row[6] || ''),
+        dateClockOut,
         clockOutTime,
         clockOutLat: String(row[8] || ''),
         clockOutLong: String(row[9] || ''),
@@ -411,40 +415,36 @@ export default function App() {
           <>
             <div className="grid grid-cols-1 gap-8">
               {/* Dashboard 2: Today */}
-              {isManager && (
-                <motion.section 
-                  initial={{ opacity: 0, y: 20 }} 
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <div className="flex items-center gap-2 mb-4">
-                    <Clock className="w-5 h-5 text-emerald-500" />
-                    <h2 className="text-xl font-bold text-slate-800">Dashboard 2: Today's Real-time View</h2>
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      {format(toZonedTime(new Date(), THAILAND_TZ), 'MMM dd, yyyy')}
-                    </span>
-                  </div>
-                  <AttendanceTable logs={todayLogs} title="Current Day Detailed View" />
-                </motion.section>
-              )}
+              <motion.section 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5 text-emerald-500" />
+                  <h2 className="text-xl font-bold text-slate-800">Dashboard 2: Today's Real-time View</h2>
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    {format(toZonedTime(new Date(), THAILAND_TZ), 'MMM dd, yyyy')}
+                  </span>
+                </div>
+                <AttendanceTable logs={todayLogs} title="Current Day Detailed View" />
+              </motion.section>
 
               {/* Dashboard 3: Yesterday */}
-              {isManager && (
-                <motion.section 
-                  initial={{ opacity: 0, y: 20 }} 
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="flex items-center gap-2 mb-4">
-                    <CalendarDays className="w-5 h-5 text-indigo-500" />
-                    <h2 className="text-xl font-bold text-slate-800">Dashboard 3: Yesterday's Attendance</h2>
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {format(subDays(toZonedTime(new Date(), THAILAND_TZ), 1), 'MMM dd, yyyy')}
-                    </span>
-                  </div>
-                  <AttendanceTable logs={yesterdayLogs} title="Yesterday Detailed View" />
-                </motion.section>
-              )}
+              <motion.section 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <CalendarDays className="w-5 h-5 text-indigo-500" />
+                  <h2 className="text-xl font-bold text-slate-800">Dashboard 3: Yesterday's Attendance</h2>
+                  <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {format(subDays(toZonedTime(new Date(), THAILAND_TZ), 1), 'MMM dd, yyyy')}
+                  </span>
+                </div>
+                <AttendanceTable logs={yesterdayLogs} title="Yesterday Detailed View" />
+              </motion.section>
 
               {/* Dashboard 4: Full Logs */}
               <motion.section 
