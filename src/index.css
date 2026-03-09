@@ -31,3 +31,41 @@
 .data-grid-row {
   @apply border-b border-[#EFEFEF] hover:bg-[#FAFAFA] transition-colors;
 }
+
+@media print {
+  body {
+    background: white !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-section, .print-section * {
+    visibility: visible;
+  }
+  .print-section {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  .no-print, button, header, footer {
+    display: none !important;
+  }
+  .bg-white {
+    background-color: white !important;
+  }
+  .bg-slate-50\/50 {
+    background-color: #f8fafc !important;
+  }
+  .shadow-sm {
+    box-shadow: none !important;
+  }
+  .rounded-2xl {
+    border-radius: 0 !important;
+  }
+  .border {
+    border-color: #e2e8f0 !important;
+  }
+}

@@ -6,7 +6,7 @@ interface Props {
   filters: FilterState;
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
   sites: string[];
-  staffIds: string[];
+  staffIds: { staffId: string, name: string }[];
 }
 
 export default function FilterBoard({ filters, setFilters, sites, staffIds }: Props) {
@@ -98,8 +98,10 @@ export default function FilterBoard({ filters, setFilters, sites, staffIds }: Pr
             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all appearance-none"
           >
             <option value="">All Staff</option>
-            {staffIds.map(id => (
-              <option key={id} value={id}>{id}</option>
+            {staffIds.map(staff => (
+              <option key={staff.staffId} value={staff.staffId}>
+                {staff.staffId} - {staff.name}
+              </option>
             ))}
           </select>
         </div>

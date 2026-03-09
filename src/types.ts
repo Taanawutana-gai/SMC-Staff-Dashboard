@@ -37,6 +37,7 @@ export interface RawData {
   logs: any[][];
   employees: any[][];
   shifts: any[][];
+  siteConfigs: any[][];
 }
 
 export interface FilterState {

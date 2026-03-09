@@ -5,9 +5,10 @@ import { Clock, Building, User, AlertCircle, CheckCircle2, X } from 'lucide-reac
 interface Props {
   logs: LogEntry[];
   title: string;
+  isHistory?: boolean;
 }
 
-export default function AttendanceTable({ logs, title }: Props) {
+export default function AttendanceTable({ logs, title, isHistory = false }: Props) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -24,17 +25,28 @@ export default function AttendanceTable({ logs, title }: Props) {
           <thead>
             <tr className="bg-slate-50/50 text-slate-500 text-[10px] uppercase tracking-widest font-bold">
               <th className="px-6 py-3 border-b border-slate-100">Site ID</th>
-              <th className="px-6 py-3 border-b border-slate-100">Name (ชื่อ)</th>
-              <th className="px-6 py-3 border-b border-slate-100">Shift Code</th>
-              <th className="px-6 py-3 border-b border-slate-100">Start Time (เข้างาน)</th>
-              <th className="px-6 py-3 border-b border-slate-100">End Time (เลิกงาน)</th>
-              <th className="px-6 py-3 border-b border-slate-100">สถานะ สาย/ไม่สาย</th>
+              <th className="px-6 py-3 border-b border-slate-100">Staff ID & Name</th>
+              {isHistory ? (
+                <>
+                  <th className="px-6 py-3 border-b border-slate-100">Date Clock-in</th>
+                  <th className="px-6 py-3 border-b border-slate-100">START TIME (เข้างาน)</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Date Clock-out</th>
+                  <th className="px-6 py-3 border-b border-slate-100">END TIME (เลิกงาน)</th>
+                </>
+              ) : (
+                <>
+                  <th className="px-6 py-3 border-b border-slate-100">Shift Code</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Start Time (เข้างาน)</th>
+                  <th className="px-6 py-3 border-b border-slate-100">End Time (เลิกงาน)</th>
+                  <th className="px-6 py-3 border-b border-slate-100">สถานะ สาย/ไม่สาย</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {logs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-10 text-center text-slate-400 italic text-sm">
+                <td colSpan={isHistory ? 6 : 6} className="px-6 py-10 text-center text-slate-400 italic text-sm">
                   ไม่พบข้อมูลบันทึกเวลา (Logs) ในช่วงเวลานี้
                 </td>
               </tr>
@@ -58,27 +70,46 @@ export default function AttendanceTable({ logs, title }: Props) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-xs font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                      {log.shiftCode || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-slate-700">{log.clockInTime}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-slate-700">{log.clockOutTime || '--:--'}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                      log.status === 'Late' 
-                        ? 'bg-rose-50 text-rose-700 border-rose-100' 
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                    }`}>
-                      {log.status === 'Late' ? <AlertCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                      {log.status === 'Late' ? 'สาย' : 'ไม่สาย'}
-                    </div>
-                  </td>
+                  {isHistory ? (
+                    <>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-slate-600 font-mono">{log.dateClockIn}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-indigo-600">{log.clockInTime}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-slate-600 font-mono">{log.dateClockOut?.split(/[ T]/)[0] || '-'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-slate-700">{log.clockOutTime || '--:--'}</div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                          {log.shiftCode || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-slate-700">{log.clockInTime}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-slate-700">{log.clockOutTime || '--:--'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                          log.status === 'Late' 
+                            ? 'bg-rose-50 text-rose-700 border-rose-100' 
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        }`}>
+                          {log.status === 'Late' ? <AlertCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                          {log.status === 'Late' ? 'สาย' : 'ไม่สาย'}
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))
             )}
