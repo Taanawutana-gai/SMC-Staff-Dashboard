@@ -316,11 +316,9 @@ export default function App() {
       .sort((a, b) => a.siteId.localeCompare(b.siteId) || a.clockInTime.localeCompare(b.clockInTime));
   }, [authorizedLogs, filters.siteId, filters.staffId]);
 
-  // Dashboard 4: Full History Logs (Sorted by Site ID and Date Clock-in)
+  // Dashboard 4: Full History Logs (Sorted exclusively by Date Clock-in)
   const fullHistoryLogs = useMemo(() => {
     return [...filteredLogs].sort((a, b) => {
-      const siteCompare = a.siteId.localeCompare(b.siteId);
-      if (siteCompare !== 0) return siteCompare;
       return a.dateClockIn.localeCompare(b.dateClockIn);
     });
   }, [filteredLogs]);
