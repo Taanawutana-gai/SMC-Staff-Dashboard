@@ -24,17 +24,20 @@ export default function AttendanceTable({ logs, title, isHistory = false }: Prop
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/50 text-slate-500 text-[10px] uppercase tracking-widest font-bold">
-              <th className="px-6 py-3 border-b border-slate-100">Site ID</th>
-              <th className="px-6 py-3 border-b border-slate-100">Staff ID & Name</th>
               {isHistory ? (
                 <>
+                  <th className="px-6 py-3 border-b border-slate-100">Staff ID & Name</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Site ID</th>
                   <th className="px-6 py-3 border-b border-slate-100">Date Clock-in</th>
                   <th className="px-6 py-3 border-b border-slate-100">START TIME (เข้างาน)</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Site ID</th>
                   <th className="px-6 py-3 border-b border-slate-100">Date Clock-out</th>
                   <th className="px-6 py-3 border-b border-slate-100">END TIME (เลิกงาน)</th>
                 </>
               ) : (
                 <>
+                  <th className="px-6 py-3 border-b border-slate-100">Site ID</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Staff ID & Name</th>
                   <th className="px-6 py-3 border-b border-slate-100">Shift Code</th>
                   <th className="px-6 py-3 border-b border-slate-100">Start Time (เข้างาน)</th>
                   <th className="px-6 py-3 border-b border-slate-100">End Time (เลิกงาน)</th>
@@ -46,47 +49,83 @@ export default function AttendanceTable({ logs, title, isHistory = false }: Prop
           <tbody className="divide-y divide-slate-100">
             {logs.length === 0 ? (
               <tr>
-                <td colSpan={isHistory ? 6 : 6} className="px-6 py-10 text-center text-slate-400 italic text-sm">
+                <td colSpan={isHistory ? 7 : 6} className="px-6 py-10 text-center text-slate-400 italic text-sm">
                   ไม่พบข้อมูลบันทึกเวลา (Logs) ในช่วงเวลานี้
                 </td>
               </tr>
             ) : (
               logs.map((log, idx) => (
                 <tr key={idx} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                      <Building className="w-3.5 h-3.5 text-slate-400" />
-                      {log.siteId}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px]">
-                        {log.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-slate-900">{log.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono tracking-tighter">ID: {log.staffId}</div>
-                      </div>
-                    </div>
-                  </td>
                   {isHistory ? (
                     <>
+                      {/* 1. Staff ID & Name */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px]">
+                            {log.name.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-slate-900">{log.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono tracking-tighter">ID: {log.staffId}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 2. Site ID */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                          <Building className="w-3.5 h-3.5 text-slate-400" />
+                          {log.siteId}
+                        </div>
+                      </td>
+
+                      {/* 3. Date Clock-in */}
                       <td className="px-6 py-4">
                         <div className="text-sm text-slate-600 font-mono">{log.dateClockIn}</div>
                       </td>
+
+                      {/* 4. START TIME (เข้างาน) */}
                       <td className="px-6 py-4">
-                        <div className="text-sm font-bold text-indigo-600">{log.clockInTime}</div>
+                        <div className="text-sm font-bold text-blue-600">{log.clockInTime}</div>
                       </td>
+
+                      {/* 5. Site ID */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                          <Building className="w-3.5 h-3.5 text-slate-400" />
+                          {log.siteIdClockOut || '-'}
+                        </div>
+                      </td>
+
+                      {/* 6. Date Clock-out */}
                       <td className="px-6 py-4">
                         <div className="text-sm text-slate-600 font-mono">{log.dateClockOut?.split(/[ T]/)[0] || '-'}</div>
                       </td>
+
+                      {/* 7. END TIME (เลิกงาน) */}
                       <td className="px-6 py-4">
                         <div className="text-sm font-bold text-slate-700">{log.clockOutTime || '--:--'}</div>
                       </td>
                     </>
                   ) : (
                     <>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                          <Building className="w-3.5 h-3.5 text-slate-400" />
+                          {log.siteId}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px]">
+                            {log.name.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-slate-900">{log.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono tracking-tighter">ID: {log.staffId}</div>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-6 py-4">
                         <span className="text-xs font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
                           {log.shiftCode || 'N/A'}

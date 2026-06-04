@@ -190,6 +190,7 @@ export default function App() {
         clockOutLat: String(row[8] || ''),
         clockOutLong: String(row[9] || ''),
         siteId: String(row[10] || ''),
+        siteIdClockOut: String(row[12] || ''),
         workingHours: String(row[11] || ''),
         shiftCode: shift?.shiftCode,
         status

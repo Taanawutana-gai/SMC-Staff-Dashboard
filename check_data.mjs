@@ -24,8 +24,8 @@ async function checkData() {
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbyvRUhqBoxy7NuozelXiI2azcpSo0pwI7A8TJJfMNZEt-mwVtq8Z7QvXD-5m-aVGu9LyA/exec?action=getData';
   try {
     const data = await fetchData(GAS_URL);
-    console.log('Employees Header:', data.employees[0]);
-    console.log('Employees First Row:', data.employees[1]);
+    console.log('Logs Header:', data.logs[0]);
+    console.log('Logs First Row:', data.logs[1]);
   } catch (e) {
     console.error(e);
   }

@@ -10,6 +10,7 @@ export interface LogEntry {
   clockOutLat: string;
   clockOutLong: string;
   siteId: string;
+  siteIdClockOut?: string;
   workingHours: string;
   shiftCode?: string; // Inferred or joined
   status?: 'On-time' | 'Late' | 'Absent' | 'No-Show';
